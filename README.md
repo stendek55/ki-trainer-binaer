@@ -38,4 +38,4 @@ Ich verlasse mich nicht nur auf fertige Datensätze wie MNIST. Ich baue mir in R
 Kann man ein funktionsfähiges KI-Modell nur mit logischem Denken, ein paar Bits und feinstem Rust-Code bauen, ohne den Mainstream-Pfaden zu folgen?
 
 ## Anwendung zum Zeichnen und Speichern der Zahlen
-!(zahlenzeichner)[eins.png]
+![zahlenzeichner](eins.png)
