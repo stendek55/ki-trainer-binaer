@@ -1,3 +1,4 @@
+use rand::Rng;
 //###############################################################################################
 //##########################-----BITOPERATIONEN-----#############################################
 //###############################################################################################
@@ -131,6 +132,108 @@ pub struct BitNeuralNetwork {
     /// Ausgabeschicht: 3 Knoten (für 0, 1 und Unbekannt).
     /// Jeder Knoten bewertet die Ausgabe aus Schicht 3 (16 Bits = 2 Bytes).
     pub output_nodes: [BinaryNode<2>; 3],
+}
+// =========================================================================
+// IMPLEMENTIERUNG DES NETZWERKS: INITIALISIERUNG & ZUSAMMENBAU
+// =========================================================================
+
+impl BitNeuralNetwork {
+    /// ERSTELLT EIN KOMPLETT ZUFÄLLIGES NETZWERK (Der Startpunkt für das Training)
+    ///
+    /// Diese Funktion baut das gesamte Netzwerk das erste Mal im Arbeitsspeicher auf.
+    /// Da das Netzwerk noch untrainiert ist, werden alle Gewichts-Bits per Zufall
+    /// auf 0 oder 1 gesetzt. Auch die Schwellenwerte (thresholds) werden sinnvoll gewürfelt.
+    pub fn new_random() -> Self {
+        // Wir holen uns den aktuellen, sicheren Zufallszahlengenerator des Systems
+        let mut rng = rand::rng();
+
+        // ---------------------------------------------------------------------
+        // SCHICHT 1 ZUSAMMENBAUEN: 64 Knoten (jeder braucht 32 Bytes an Gewichten)
+        // ---------------------------------------------------------------------
+        // Wir erstellen ein temporäres, leeres Array mit Platz für 64 Knoten.
+        // Das Makro 'core::array::from_fn' hilft uns, jedes Element einzeln zu initialisieren.
+        let hidden_1: [BinaryNode<32>; 64] = core::array::from_fn(|_| {
+            let mut zufall_gewichte = [0u8; 32];
+            // Wir befüllen das gesamte 32-Byte-Array mit rein zufälligen Bytes (Bits)
+            rng.fill(&mut zufall_gewichte);
+
+            // Ein Knoten in Schicht 1 vergleicht maximal 256 Bits (32 Bytes * 8 Bits).
+            // Wir würfeln einen Schwellenwert, der zwischen 100 und 180 übereinstimmenden Bits liegt.
+            let zufall_threshold = rng.random_range(100..=180);
+
+            BinaryNode {
+                weights: zufall_gewichte,
+                threshold: zufall_threshold,
+            }
+        });
+
+        // ---------------------------------------------------------------------
+        // SCHICHT 2 ZUSAMMENBAUEN: 32 Knoten (jeder braucht 8 Bytes an Gewichten)
+        // ---------------------------------------------------------------------
+        // Diese Schicht schaut nicht mehr auf das Bild, sondern bewertet die 64 Bits
+        // (8 Bytes), die aus Schicht 1 als Antwort herauskommen.
+        let hidden_2: [BinaryNode<8>; 32] = core::array::from_fn(|_| {
+            let mut zufall_gewichte = [0u8; 8];
+            rng.fill(&mut zufall_gewichte);
+
+            // Schicht 2 vergleicht max. 64 Bits (8 Bytes * 8 Bits).
+            // Ein sinnvoller Schwellenwert liegt hier zwischen 25 und 45 übereinstimmenden Bits.
+            let zufall_threshold = rng.random_range(25..=45);
+
+            BinaryNode {
+                weights: zufall_gewichte,
+                threshold: zufall_threshold,
+            }
+        });
+
+        // ---------------------------------------------------------------------
+        // SCHICHT 3 ZUSAMMENBAUEN: 16 Knoten (jeder braucht 4 Bytes an Gewichten)
+        // ---------------------------------------------------------------------
+        // Diese Schicht verdichtet die 32 Bits (4 Bytes) aus Schicht 2 noch weiter.
+        let hidden_3: [BinaryNode<4>; 16] = core::array::from_fn(|_| {
+            let mut zufall_gewichte = [0u8; 4];
+            rng.fill(&mut zufall_gewichte);
+
+            // Schicht 3 vergleicht max. 32 Bits (4 Bytes * 8 Bits).
+            // Ein sinnvoller Schwellenwert liegt hier zwischen 12 und 24 übereinstimmenden Bits.
+            let zufall_threshold = rng.random_range(12..=24);
+
+            BinaryNode {
+                weights: zufall_gewichte,
+                threshold: zufall_threshold,
+            }
+        });
+
+        // ---------------------------------------------------------------------
+        // AUSGABESCHICHT ZUSAMMENBAUEN: 3 Knoten (jeder braucht 2 Bytes an Gewichten)
+        // ---------------------------------------------------------------------
+        // Die 3 Knoten (für NULL, EINS und ANDERE) bewerten die 16 Ausgangsbits (2 Bytes)
+        // der Schicht 3. Wer am Ende die meisten Übereinstimmungen erzielt, gewinnt.
+        let output_nodes: [BinaryNode<2>; 3] = core::array::from_fn(|_| {
+            let mut zufall_gewichte = [0u8; 2];
+            rng.fill(&mut zufall_gewichte);
+
+            // Die Ausgabeschicht vergleicht max. 16 Bits (2 Bytes * 8 Bits).
+            // Für die finale Klassifizierung setzen wir den Schwellenwert anfangs niedrig an (z.B. 6).
+            let zufall_threshold = rng.random_range(6..=12);
+
+            BinaryNode {
+                weights: zufall_gewichte,
+                threshold: zufall_threshold,
+            }
+        });
+
+        // ---------------------------------------------------------------------
+        // DAS COMPOSING: Alle fertigen Schichten in das Gesamtnetzwerk einsetzen
+        // ---------------------------------------------------------------------
+        // Hier geben wir das komplett fertig montierte Netzwerk-Objekt zurück.
+        BitNeuralNetwork {
+            hidden_1,
+            hidden_2,
+            hidden_3,
+            output_nodes,
+        }
+    }
 }
 
 // --- TDD Testumgebung mit Punktnotation (Vollständige Version) ---
