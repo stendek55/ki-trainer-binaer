@@ -117,6 +117,14 @@ pub enum Classification {
     ANDERE,
 }
 
+/// Ein einzelnes Trainingsbeispiel, das eine gezeichnete Zahl und die korrekte Antwort enthält.
+pub struct TrainingSample {
+    /// Die 16x16 Matrix als 32 Bytes verpackt
+    pub input: [u8; 32],
+    /// Das Label, was es in Wirklichkeit ist (NULL, EINS oder ANDERE)
+    pub target: Classification,
+}
+
 /// Das vollständige neuronale Netzwerk mit deinen 3 Hidden Layers (64 -> 32 -> 16 -> 3).
 #[derive(Debug, Clone)]
 pub struct BitNeuralNetwork {
@@ -401,16 +409,7 @@ impl BitNeuralNetwork {
             knoten.mutate(&mut rng, mutations_rate);
         }
     }
-}
-/// Ein einzelnes Trainingsbeispiel, das eine gezeichnete Zahl und die korrekte Antwort enthält.
-pub struct TrainingSample {
-    /// Die 16x16 Matrix als 32 Bytes verpackt
-    pub input: [u8; 32],
-    /// Das Label, was es in Wirklichkeit ist (NULL, EINS oder ANDERE)
-    pub target: Classification,
-}
 
-impl BitNeuralNetwork {
     /// EVALUIERUNG (Fitness-Funktion)
     /// Jagt einen ganzen Stapel an Testbildern durch das Netzwerk und zählt,
     /// wie viele das Netzwerk davon bereits fehlerfrei erraten hat.
