@@ -137,96 +137,79 @@ pub struct BitNeuralNetwork {
 // IMPLEMENTIERUNG DES NETZWERKS: INITIALISIERUNG & ZUSAMMENBAU
 // =========================================================================
 
-impl BitNeuralNetwork {
-    /// ERSTELLT EIN KOMPLETT ZUFÄLLIGES NETZWERK (Der Startpunkt für das Training)
+// =========================================================================
+// FABRIK-FUNKTION FÜR EINEN EINZELNEN KNOTEN
+// =========================================================================
+
+impl<const WEIGHT_BYTES: usize> BinaryNode<WEIGHT_BYTES> {
+    /// Erstellt einen einzelnen Knoten mit zufälligen Gewichten und einem maßgeschneiderten Schwellenwert.
     ///
-    /// Diese Funktion baut das gesamte Netzwerk das erste Mal im Arbeitsspeicher auf.
-    /// Da das Netzwerk noch untrainiert ist, werden alle Gewichts-Bits per Zufall
-    /// auf 0 oder 1 gesetzt. Auch die Schwellenwerte (thresholds) werden sinnvoll gewürfelt.
+    /// * `rng`: Eine veränderliche Referenz auf den Zufallsgenerator des Systems.
+    /// * `min_thresh` / `max_thresh`: Der Wertebereich für den gewürfelten Schwellenwert.
+    pub fn new_random(rng: &mut rand::rngs::ThreadRng, min_thresh: u16, max_thresh: u16) -> Self {
+        // 1. Speicherplatz exakt in der Größe reservieren, die die Schicht benötigt
+        let mut weights = [0u8; WEIGHT_BYTES];
+
+        // 2. Den Speicherbereich (alle Bits) in einem Rutsch mit Zufall füllen
+        rng.fill(&mut weights);
+
+        // 3. Den Schwellenwert im übergebenen Bereich würfeln
+        let threshold = rng.random_range(min_thresh..=max_thresh);
+
+        // 4. Den fertigen Knoten zurückgeben
+        BinaryNode { weights, threshold }
+    }
+}
+//--------------------------------------------------------------------------
+// die funktion für einen knoten aus schicht 2 aufrufen
+// BinaryNode<8>, der 8 Bytes = 64 Bits verarbeitet) mit einem Schwellenwert-Bereich von 25..=45
+// Wenn dieser Funktionsaufruf durchgelaufen ist, liegt im Arbeitsspeicher ein fertiges BinaryNode-Objekt.
+// Wenn man es ausdrucken würde, sähe es (binär dargestellt) genau so aus:
+/* das ist ein knoten aus schicht zwei -> davon liegen 32 stück im ram
+BinaryNode {
+    // 1. Die gewürfelten Gewichte (8 Bytes im RAM)
+    weights: [
+        0b1011_0010, // Byte 0
+        0b0100_1111, // Byte 1
+        0b1110_0001, // Byte 2
+        0b0000_1101, // Byte 3
+        0b1010_1010, // Byte 4
+        0b1111_0000, // Byte 5
+        0b0011_1100, // Byte 6
+        0b0110_1001, // Byte 7
+    ],
+
+    // 2. Der gewürfelte Schwellenwert (als u16 im RAM)
+    threshold: 37,
+}
+*/
+
+// =========================================================================
+// AUFGERÄUMTER ZUSAMMENBAU DES GESAMT-NETZWERKS
+// =========================================================================
+
+impl BitNeuralNetwork {
+    /// Erstellt das gesamte Netzwerk durch das Aufrufen der ausgelagerten Knoten-Fabrik.
     pub fn new_random() -> Self {
-        // Wir holen uns den aktuellen, sicheren Zufallszahlengenerator des Systems
         let mut rng = rand::rng();
 
-        // ---------------------------------------------------------------------
-        // SCHICHT 1 ZUSAMMENBAUEN: 64 Knoten (jeder braucht 32 Bytes an Gewichten)
-        // ---------------------------------------------------------------------
-        // Wir erstellen ein temporäres, leeres Array mit Platz für 64 Knoten.
-        // Das Makro 'core::array::from_fn' hilft uns, jedes Element einzeln zu initialisieren.
-        let hidden_1: [BinaryNode<32>; 64] = core::array::from_fn(|_| {
-            let mut zufall_gewichte = [0u8; 32];
-            // Wir befüllen das gesamte 32-Byte-Array mit rein zufälligen Bytes (Bits)
-            rng.fill(&mut zufall_gewichte);
+        // Schicht 1: 64 Knoten à 32 Bytes (256 Bits max. Übereinstimmung)
+        let hidden_1: [BinaryNode<32>; 64] =
+            core::array::from_fn(|_| BinaryNode::new_random(&mut rng, 100, 180));
 
-            // Ein Knoten in Schicht 1 vergleicht maximal 256 Bits (32 Bytes * 8 Bits).
-            // Wir würfeln einen Schwellenwert, der zwischen 100 und 180 übereinstimmenden Bits liegt.
-            let zufall_threshold = rng.random_range(100..=180);
+        // Schicht 2: 32 Knoten à 8 Bytes (64 Bits max. Übereinstimmung)
+        let hidden_2: [BinaryNode<8>; 32] =
+            core::array::from_fn(|_| BinaryNode::new_random(&mut rng, 25, 45));
 
-            BinaryNode {
-                weights: zufall_gewichte,
-                threshold: zufall_threshold,
-            }
-        });
+        // Schicht 3: 16 Knoten à 4 Bytes (32 Bits max. Übereinstimmung)
+        let hidden_3: [BinaryNode<4>; 16] =
+            core::array::from_fn(|_| BinaryNode::new_random(&mut rng, 12, 24));
 
-        // ---------------------------------------------------------------------
-        // SCHICHT 2 ZUSAMMENBAUEN: 32 Knoten (jeder braucht 8 Bytes an Gewichten)
-        // ---------------------------------------------------------------------
-        // Diese Schicht schaut nicht mehr auf das Bild, sondern bewertet die 64 Bits
-        // (8 Bytes), die aus Schicht 1 als Antwort herauskommen.
-        let hidden_2: [BinaryNode<8>; 32] = core::array::from_fn(|_| {
-            let mut zufall_gewichte = [0u8; 8];
-            rng.fill(&mut zufall_gewichte);
+        // Ausgabeschicht: 3 Knoten à 2 Bytes (16 Bits max. Übereinstimmung)
+        let output_nodes: [BinaryNode<2>; 3] =
+            core::array::from_fn(|_| BinaryNode::new_random(&mut rng, 6, 12));
 
-            // Schicht 2 vergleicht max. 64 Bits (8 Bytes * 8 Bits).
-            // Ein sinnvoller Schwellenwert liegt hier zwischen 25 und 45 übereinstimmenden Bits.
-            let zufall_threshold = rng.random_range(25..=45);
-
-            BinaryNode {
-                weights: zufall_gewichte,
-                threshold: zufall_threshold,
-            }
-        });
-
-        // ---------------------------------------------------------------------
-        // SCHICHT 3 ZUSAMMENBAUEN: 16 Knoten (jeder braucht 4 Bytes an Gewichten)
-        // ---------------------------------------------------------------------
-        // Diese Schicht verdichtet die 32 Bits (4 Bytes) aus Schicht 2 noch weiter.
-        let hidden_3: [BinaryNode<4>; 16] = core::array::from_fn(|_| {
-            let mut zufall_gewichte = [0u8; 4];
-            rng.fill(&mut zufall_gewichte);
-
-            // Schicht 3 vergleicht max. 32 Bits (4 Bytes * 8 Bits).
-            // Ein sinnvoller Schwellenwert liegt hier zwischen 12 und 24 übereinstimmenden Bits.
-            let zufall_threshold = rng.random_range(12..=24);
-
-            BinaryNode {
-                weights: zufall_gewichte,
-                threshold: zufall_threshold,
-            }
-        });
-
-        // ---------------------------------------------------------------------
-        // AUSGABESCHICHT ZUSAMMENBAUEN: 3 Knoten (jeder braucht 2 Bytes an Gewichten)
-        // ---------------------------------------------------------------------
-        // Die 3 Knoten (für NULL, EINS und ANDERE) bewerten die 16 Ausgangsbits (2 Bytes)
-        // der Schicht 3. Wer am Ende die meisten Übereinstimmungen erzielt, gewinnt.
-        let output_nodes: [BinaryNode<2>; 3] = core::array::from_fn(|_| {
-            let mut zufall_gewichte = [0u8; 2];
-            rng.fill(&mut zufall_gewichte);
-
-            // Die Ausgabeschicht vergleicht max. 16 Bits (2 Bytes * 8 Bits).
-            // Für die finale Klassifizierung setzen wir den Schwellenwert anfangs niedrig an (z.B. 6).
-            let zufall_threshold = rng.random_range(6..=12);
-
-            BinaryNode {
-                weights: zufall_gewichte,
-                threshold: zufall_threshold,
-            }
-        });
-
-        // ---------------------------------------------------------------------
-        // DAS COMPOSING: Alle fertigen Schichten in das Gesamtnetzwerk einsetzen
-        // ---------------------------------------------------------------------
-        // Hier geben wir das komplett fertig montierte Netzwerk-Objekt zurück.
+        // Alle sauber erzeugten Schichten zusammenfügen
         BitNeuralNetwork {
             hidden_1,
             hidden_2,
