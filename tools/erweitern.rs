@@ -38,6 +38,18 @@ fn main() {
         let augmented_row = dilate_left_and_up(row);
         write_row(&mut writer, &augmented_row);
         count_augmented += 1;
+        // nächste Erweiterung (Dilatation) berechnen
+        let augmented_row = dilate_rechts_unten(row);
+        write_row(&mut writer, &augmented_row);
+        count_augmented += 1;
+        // nächste Erweiterung (Dilatation) berechnen
+        let augmented_row = dilate_split_axis(row);
+        write_row(&mut writer, &augmented_row);
+        count_augmented += 1;
+        // nächste Erweiterung (Dilatation) berechnen
+        let augmented_row = dilate_zoom_outward_pure(row);
+        write_row(&mut writer, &augmented_row);
+        count_augmented += 1;
     }
 
     // Speicher-Buffer physisch auf die Festplatte schreiben
@@ -47,6 +59,10 @@ fn main() {
     println!("  Erweiterung erfolgreich abgeschlossen!");
     println!("  - Originale exportiert:         {}", count_original);
     println!("  - Erweiterte Muster exportiert: {}", count_augmented);
+    println!("     |---> dicker->plus pixel->links-oben");
+    println!("     |---> dicker->plus pixel->rechts-unten");
+    println!("     |---> dicker->plus pixel->schräg");
+    println!("     |---> dicker->neue pixel->zoom-gross");
     println!("  ----------------------------------------------------------");
     println!(
         "  Gesamte Zeilen in neuer CSV:    {}",
@@ -78,6 +94,148 @@ fn dilate_left_and_up(source: &DataRow) -> DataRow {
                     let up_idx = (y - 1) * GRID_SIZE + x;
                     new_grid[up_idx] = 1;
                 }
+            }
+        }
+    }
+
+    DataRow {
+        label: source.label,
+        grid_data: new_grid,
+    }
+}
+
+/// Transformiert das Muster, indem für jedes aktive Pixel (1)
+/// zusätzlich das rechte und das untere Nachbarpixel auf 1 gesetzt werden.
+fn dilate_rechts_unten(source: &DataRow) -> DataRow {
+    // Wir klonen das originale Gitter als Basis, damit bestehende Pixel erhalten bleiben
+    let mut new_grid = source.grid_data.clone();
+
+    for y in 0..GRID_SIZE {
+        for x in 0..GRID_SIZE {
+            let current_idx = y * GRID_SIZE + x;
+
+            // Prüfen, ob das aktuelle Pixel im Original-Datensatz aktiv (1) war
+            if source.grid_data[current_idx] == 1 {
+                // 1. Pixel RECHTS dazusetzen (falls wir nicht am rechten Rand x == GRID_SIZE sind)
+                if x < GRID_SIZE - 1 {
+                    let rechts_idx = y * GRID_SIZE + (x + 1);
+                    new_grid[rechts_idx] = 1;
+                }
+
+                // 2. Pixel DRUNTER dazusetzen (falls wir nicht am unteren Rand y == GRID_SIZE sind)
+                if y < GRID_SIZE - 1 {
+                    let unten_idx = (y + 1) * GRID_SIZE + x;
+                    new_grid[unten_idx] = 1;
+                }
+            }
+        }
+    }
+
+    DataRow {
+        label: source.label,
+        grid_data: new_grid,
+    }
+}
+
+/// Transformiert das Muster, indem für jedes aktive Pixel (1)
+/// in oberer hälfte -> zusätzlich das rechte und das obere Nachbarpixel auf 1 gesetzt werden.
+/// in unterer hälfte -> zusätzlich das linke und das untere Nachbarpixel auf 1 gesetzt werden.
+fn dilate_split_axis(source: &DataRow) -> DataRow {
+    let mut new_grid = source.grid_data.clone();
+
+    for y in 0..GRID_SIZE {
+        for x in 0..GRID_SIZE {
+            let current_idx = y * GRID_SIZE + x;
+
+            // 1. Früher Abbruch (Early Exit) für inaktive Pixel
+            if source.grid_data[current_idx] != 1 {
+                continue;
+            }
+
+            // 2. Logik-Splittung anhand der Y-Achse
+            if y < GRID_SIZE / 2 {
+                // Obere Hälfte: Aufdickung nach Oben-Rechts
+                if x < GRID_SIZE - 1 {
+                    new_grid[y * GRID_SIZE + (x + 1)] = 1;
+                }
+                if y > 0 {
+                    new_grid[(y - 1) * GRID_SIZE + x] = 1;
+                }
+            } else {
+                // Untere Hälfte: Aufdickung nach Unten-Links
+                if x > 0 {
+                    new_grid[y * GRID_SIZE + (x - 1)] = 1;
+                }
+                if y < GRID_SIZE - 1 {
+                    new_grid[(y + 1) * GRID_SIZE + x] = 1;
+                }
+            }
+        }
+    }
+
+    DataRow {
+        label: source.label,
+        grid_data: new_grid,
+    }
+}
+
+/// Erzeugt einen nahtlosen Zoom nach außen, schließt die Achsen-Lücken
+/// und sichert die Pixel im absoluten Zentrum des 16x16-Rasters.
+fn dilate_zoom_outward_pure(source: &DataRow) -> DataRow {
+    let mut new_grid = vec![0; TOTAL_PIXELS];
+    let mitte = GRID_SIZE / 2; // Grenze zwischen Index 7 und 8
+
+    for y in 0..GRID_SIZE {
+        for x in 0..GRID_SIZE {
+            let current_idx = y * GRID_SIZE + x;
+
+            if source.grid_data[current_idx] != 1 {
+                continue;
+            }
+
+            // Standard-Richtungsvektor nach außen
+            let dx = if x < mitte { -1 } else { 1 };
+            let dy = if y < mitte { -1 } else { 1 };
+
+            // Zielkoordinate für den normalen Zoom-Schritt
+            let target_x = x as i32 + dx;
+            let target_y = y as i32 + dy;
+
+            // 1. Den normalen verschobenen Pixel setzen (mit Randschutz)
+            if target_x >= 0
+                && target_x < GRID_SIZE as i32
+                && target_y >= 0
+                && target_y < GRID_SIZE as i32
+            {
+                let target_idx = (target_y as usize) * GRID_SIZE + (target_x as usize);
+                new_grid[target_idx] = 1;
+            }
+
+            // 2. KORREKTUR FÜR DIE ACHSEN (Verhindert das Aufreißen der Linien)
+            let ist_an_x_mitte = x == mitte - 1 || x == mitte;
+            let ist_an_y_mitte = y == mitte - 1 || y == mitte;
+
+            // Wenn das Pixel an der vertikalen Mitte liegt -> X fixieren, Y verschieben
+            if ist_an_x_mitte {
+                let fix_x_target_y = y as i32 + dy;
+                if fix_x_target_y >= 0 && fix_x_target_y < GRID_SIZE as i32 {
+                    new_grid[(fix_x_target_y as usize) * GRID_SIZE + x] = 1;
+                }
+            }
+
+            // Wenn das Pixel an der horizontalen Mitte liegt -> Y fixieren, X verschieben
+            if ist_an_y_mitte {
+                let fix_y_target_x = x as i32 + dx;
+                if fix_y_target_x >= 0 && fix_y_target_x < GRID_SIZE as i32 {
+                    new_grid[(y * GRID_SIZE) + (fix_y_target_x as usize)] = 1;
+                }
+            }
+
+            // 3. NEU: ZENTRUMS-SICHERUNG
+            // Wenn das Pixel im absoluten 2x2-Zentrum liegt, darf es nicht komplett
+            // wegwandern. Wir halten es auf seiner Ursprungsposition fest.
+            if ist_an_x_mitte && ist_an_y_mitte {
+                new_grid[current_idx] = 1;
             }
         }
     }
