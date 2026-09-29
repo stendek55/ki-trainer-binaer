@@ -8,53 +8,80 @@ impl BitByte {
         BitByte(val)
     }
 
-    // --- Zu entwickelnde Methoden (Produktivcode) ---
-
     // Gibt den inneren u8-Wert zurück
     pub fn value(&self) -> u8 {
         self.0
     }
 
-    pub fn bitwise_and(&self, _other: BitByte) -> Self {
-        todo!("Implementiere AND")
+    /// Führt ein bitweises AND (Und) mit einem anderen BitByte durch.
+    /// Ein Bit im Ergebnis ist nur dann 1, wenn es in BEIDEN Ausgangszahlen 1 war.
+    pub fn bitwise_and(&self, other: BitByte) -> Self {
+        BitByte(self.0 & other.0)
     }
 
-    pub fn bitwise_or(&self, _other: BitByte) -> Self {
-        todo!("Implementiere OR")
+    /// Führt ein bitweises OR (Oder) mit einem anderen BitByte durch.
+    /// Ein Bit im Ergebnis ist 1, wenn es in MINDESTENS EINER der beiden Zahlen 1 war.
+    pub fn bitwise_or(&self, other: BitByte) -> Self {
+        BitByte(self.0 | other.0)
     }
 
-    pub fn bitwise_xor(&self, _other: BitByte) -> Self {
-        todo!("Implementiere XOR")
+    /// Führt ein bitweises XOR (Exklusiv-Oder) mit einem anderen BitByte durch.
+    /// Ein Bit im Ergebnis ist 1, wenn die Bits UNTERSCHIEDLICH sind (eins ist 1, das andere 0).
+    pub fn bitwise_xor(&self, other: BitByte) -> Self {
+        BitByte(self.0 ^ other.0)
     }
 
+    /// Invertiert alle Bits des aktuellen Byte (bitweises NOT).
+    /// Aus jeder 1 wird eine 0, aus jeder 0 eine 1.
     pub fn bitwise_not(&self) -> Self {
-        todo!("Implementiere NOT")
+        BitByte(!self.0)
     }
 
-    pub fn shift_left(&self, _positions: u32) -> Self {
-        todo!("Implementiere Shift Left")
+    /// Schiebt alle Bits um X Positionen nach links.
+    /// Rechts wird mit Nullen aufgefüllt. Bits, die links herausfallen, gehen verloren.
+    pub fn shift_left(&self, positions: u8) -> Self {
+        BitByte(self.0 << positions)
     }
 
-    pub fn shift_right(&self, _positions: u32) -> Self {
-        todo!("Implementiere Shift Right")
+    /// Schiebt alle Bits um X Positionen nach rechts.
+    /// Links wird mit Nullen aufgefüllt. Bits, die rechts herausfallen, gehen verloren.
+    pub fn shift_right(&self, positions: u8) -> Self {
+        BitByte(self.0 >> positions)
     }
 
-    // Nutzen `mut self` für Method Chaining (geben verändertes Self zurück)
-    pub fn set_bit(mut self, _index: u8) -> Self {
-        todo!("Setze Bit")
+    /// Setzt das Bit am angegebenen Index (0-7) garantiert auf 1.
+    pub fn set_bit(mut self, index: u8) -> Self {
+        // 1. '1 << index' erstellt eine Schablone, bei der NUR das Bit am Index eine 1 ist.
+        // 2. '|=' (OR) erzwingt an dieser Stelle eine 1, lässt alle anderen Bits unverändert.
+        self.0 |= 1 << index;
+        // Wir geben das modifizierte Objekt für das Method Chaining zurück.
+        self
     }
 
-    pub fn clear_bit(mut self, _index: u8) -> Self {
-        todo!("Lösche Bit")
+    /// Löscht das Bit am angegebenen Index (0-7) garantiert (setzt es auf 0).
+    pub fn clear_bit(mut self, index: u8) -> Self {
+        // 1. '1 << index' erstellt die Maske (z.B. 0b0000_0100 bei Index 2).
+        // 2. '!' invertiert die Maske (wird zu 0b1111_1011). Überall 1, außer am Ziel-Index.
+        // 3. '&=' (AND) behält alle alten Bits bei (da & 1 nix ändert), löscht aber das Ziel-Bit (da & 0 = 0).
+        self.0 &= !(1 << index);
+        self
     }
 
-    pub fn toggle_bit(mut self, _index: u8) -> Self {
-        todo!("Invertiere Bit")
+    /// Invertiert (toggelt) das Bit am angegebenen Index (0-7).
+    /// Aus 1 wird 0, aus 0 wird 1.
+    pub fn toggle_bit(mut self, index: u8) -> Self {
+        // 1. '1 << index' erstellt die Maske mit einer einzelnen 1 am Index.
+        // 2. '^=' (XOR) dreht den Wert um: 1 ^ 1 wird zu 0, und 0 ^ 1 wird zu 1.
+        self.0 ^= 1 << index;
+        self
     }
 
-    // Gibt einen bool zurück, bricht die Kette auf
-    pub fn check_bit(&self, _index: u8) -> bool {
-        todo!("Prüfe Bit")
+    /// Prüft, ob das Bit am angegebenen Index (0-7) den Zustand 1 hat.
+    pub fn check_bit(&self, index: u8) -> bool {
+        // 1. 'self.0 & (1 << index)' isoliert das Bit. Alle anderen Stellen werden zu 0.
+        // 2. Wenn das Ergebnis NICHT 0 ist, bedeutet das, dass das Bit am Index eine 1 war.
+        // 3. Gibt true zurück wenn gesetzt, andernfalls false.
+        (self.0 & (1 << index)) != 0
     }
 }
 
