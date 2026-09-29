@@ -8,10 +8,14 @@ minifb = "0.28.0"
 rand = "0.9"
 
 #cargo run --bin name
+#tools
 [[bin]]
 name = "zeichner"
 path = "tools/zeichner.rs"
-
+[[bin]]
+name = "sehen"
+path = "tools/sehen.rs"
+#main
 [[bin]]
 name = "trainer"
 path = "src/main.rs"
