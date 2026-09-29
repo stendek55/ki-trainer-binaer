@@ -159,6 +159,38 @@ impl<const WEIGHT_BYTES: usize> BinaryNode<WEIGHT_BYTES> {
         // 4. Den fertigen Knoten zurückgeben
         BinaryNode { weights, threshold }
     }
+
+    /// MUTATION AUF KNOTEN-EBENE
+    /// Geht durch alle Gewichts-Bytes des Knotens und flippt zufällig Bits
+    /// basierend auf einer Mutationsrate (z. B. 0.05 für 5% Chance).
+    pub fn mutate(&mut self, rng: &mut rand::rngs::ThreadRng, mutations_rate: f32) {
+        use rand::Rng;
+
+        // 1. Schleife über alle Bytes, die dieser Knoten besitzt
+        for byte in self.weights.iter_mut() {
+            // Wir würfeln eine Zahl zwischen 0.0 und 1.0. Ist sie kleiner als die Rate, mutieren wir!
+            if rng.random::<f32>() < mutations_rate {
+                // Wir würfeln einen zufälligen Bit-Index von 0 bis 7
+                let zufall_bit_index = rng.random_range(0..8);
+
+                // HIER NUTZEN WIR DEINE EIGENE TOGGLE-LOGIK!
+                // Wir packen das aktuelle Byte in dein BitByte, flippen das Bit und schreiben es zurück.
+                let mut bb = BitByte::new(*byte);
+                bb = bb.toggle_bit(zufall_bit_index);
+                *byte = bb.value();
+            }
+        }
+
+        // 2. Auch der Schwellenwert (threshold) muss mutieren dürfen!
+        // Mit einer 20%-Chance passen wir den Schwellenwert leicht an (+1 oder -1)
+        if rng.random::<f32>() < 0.20 {
+            if rng.random::<bool>() {
+                self.threshold = self.threshold.saturating_add(1);
+            } else {
+                self.threshold = self.threshold.saturating_sub(1);
+            }
+        }
+    }
 }
 //--------------------------------------------------------------------------
 // die funktion für einen knoten aus schicht 2 aufrufen
@@ -340,6 +372,33 @@ impl BitNeuralNetwork {
             Classification::NULL
         } else {
             Classification::ANDERE // Bei zu knappen Unterschieden
+        }
+    }
+    /// MUTATION AUF NETZWERK-EBENE
+    /// Wandert durch jede einzelne Schicht des Netzwerks und ruft für jeden
+    /// Knoten die mutations_rate auf, um das "Gehirn" minimal per Zufall zu verändern.
+    pub fn mutate(&mut self, mutations_rate: f32) {
+        // Wir holen uns den Zufallsgenerator des Systems
+        let mut rng = rand::rng();
+
+        // 1. Mutiere Schicht 1 (Alle 64 Knoten)
+        for knoten in self.hidden_1.iter_mut() {
+            knoten.mutate(&mut rng, mutations_rate);
+        }
+
+        // 2. Mutiere Schicht 2 (Alle 32 Knoten)
+        for knoten in self.hidden_2.iter_mut() {
+            knoten.mutate(&mut rng, mutations_rate);
+        }
+
+        // 3. Mutiere Schicht 3 (Alle 16 Knoten)
+        for knoten in self.hidden_3.iter_mut() {
+            knoten.mutate(&mut rng, mutations_rate);
+        }
+
+        // 4. Mutiere die Ausgabeschicht (Alle 3 Ausgangsknoten)
+        for knoten in self.output_nodes.iter_mut() {
+            knoten.mutate(&mut rng, mutations_rate);
         }
     }
 }
