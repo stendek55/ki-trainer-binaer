@@ -1,3 +1,6 @@
+//###############################################################################################
+//##########################-----BITOPERATIONEN-----#############################################
+//###############################################################################################
 /// Ein Wrapper für u8, der komfortable Bitoperationen per Punktoperator erlaubt.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BitByte(pub u8);
@@ -83,6 +86,51 @@ impl BitByte {
         // 3. Gibt true zurück wenn gesetzt, andernfalls false.
         (self.0 & (1 << index)) != 0
     }
+}
+
+//#################################################################################################
+//##########################-----NETZSTRUKTUREN-----###############################################
+//#################################################################################################
+//##-----------netzwerk besteht aus folgenden drei hauptschichten (eigene festlegung)------------##
+//##----->EINGABEschicht -> die 256 pixel (16x16) der zeichenmaske                               ##
+//##----->HIDDENschicht  -> layer_1(64KNOTEN) | layer_2(32KNOTEN) | layer_3(16KNOTEN)            ##
+//##        |---> das ist das eigentliche gehirn wo die berechnungen (entscheidungen) stattfinden##
+//##----->AUSGABEschicht -> liefert das ergebnis -> ist es eine -> eins | null | wasanderes      ##
+//#################################################################################################
+/// Ein einzelner binärer Knoten im Netzwerk.
+/// u16 für den threshold, damit die 256 Bits der ersten Schicht sicher abbilden können.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BinaryNode<const WEIGHT_BYTES: usize> {
+    /// Die gelernten Bit-Muster (Schablonen-Maske) für diesen Knoten.
+    pub weights: [u8; WEIGHT_BYTES],
+
+    /// Der Schwellenwert: Wie viele Bits müssen mindestens übereinstimmen?
+    pub threshold: u16,
+}
+
+/// Die drei Zustände für Ausgabeschicht.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Classification {
+    NULL,
+    EINS,
+    ANDERE,
+}
+
+/// Das vollständige neuronale Netzwerk mit deinen 3 Hidden Layers (64 -> 32 -> 16 -> 3).
+#[derive(Debug, Clone)]
+pub struct BitNeuralNetwork {
+    /// Schicht 1: 64 Knoten. Jeder Knoten verarbeitet den Input (256 Bits = 32 Bytes).
+    pub hidden_1: [BinaryNode<32>; 64],
+
+    /// Schicht 2: 32 Knoten. Jeder Knoten verarbeitet die Ausgabe aus Schicht 1 (64 Bits = 8 Bytes).
+    pub hidden_2: [BinaryNode<8>; 32],
+
+    /// Schicht 3: 16 Knoten. Jeder Knoten verarbeitet die Ausgabe aus Schicht 2 (32 Bits = 4 Bytes).
+    pub hidden_3: [BinaryNode<4>; 16],
+
+    /// Ausgabeschicht: 3 Knoten (für 0, 1 und Unbekannt).
+    /// Jeder Knoten bewertet die Ausgabe aus Schicht 3 (16 Bits = 2 Bytes).
+    pub output_nodes: [BinaryNode<2>; 3],
 }
 
 // --- TDD Testumgebung mit Punktnotation (Vollständige Version) ---
