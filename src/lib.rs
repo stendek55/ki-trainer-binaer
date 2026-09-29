@@ -402,6 +402,34 @@ impl BitNeuralNetwork {
         }
     }
 }
+/// Ein einzelnes Trainingsbeispiel, das eine gezeichnete Zahl und die korrekte Antwort enthält.
+pub struct TrainingSample {
+    /// Die 16x16 Matrix als 32 Bytes verpackt
+    pub input: [u8; 32],
+    /// Das Label, was es in Wirklichkeit ist (NULL, EINS oder ANDERE)
+    pub target: Classification,
+}
+
+impl BitNeuralNetwork {
+    /// EVALUIERUNG (Fitness-Funktion)
+    /// Jagt einen ganzen Stapel an Testbildern durch das Netzwerk und zählt,
+    /// wie viele das Netzwerk davon bereits fehlerfrei erraten hat.
+    pub fn evaluate_fitness(&self, dataset: &[TrainingSample]) -> u32 {
+        let mut korrekte_treffer = 0u32;
+
+        for sample in dataset {
+            // Wir jagen das Bild durch den Vorwärtspass
+            let vorhersage = self.forward_pass(&sample.input);
+
+            // Wenn die Vorhersage der Wahrheit entspricht, gibt es einen Punkt!
+            if vorhersage == sample.target {
+                korrekte_treffer += 1;
+            }
+        }
+
+        korrekte_treffer
+    }
+}
 
 // --- TDD Testumgebung mit Punktnotation (Vollständige Version) ---
 #[cfg(test)]
