@@ -217,6 +217,131 @@ impl BitNeuralNetwork {
             output_nodes,
         }
     }
+
+    /// Hilfsfunktion, die die Übereinstimmungen zwischen einem Eingabe-Slice
+    /// und den Gewichten eines Knotens unter Verwendung von BitByte berechnet.
+    fn berechne_knoten_matches(input_layer: &[u8], knoten_weights: &[u8]) -> u32 {
+        let mut gesamt_matches = 0u32;
+
+        for (layer_byte, weight_byte) in input_layer.iter().zip(knoten_weights.iter()) {
+            let bb_layer = BitByte::new(*layer_byte);
+            let bb_weight = BitByte::new(*weight_byte);
+
+            let xnor_byte = bb_layer.bitwise_xor(bb_weight).bitwise_not();
+            gesamt_matches += xnor_byte.value().count_ones();
+        }
+        gesamt_matches
+    }
+
+    /// Hilfsfunktion, die prüft, ob der Schwellenwert erreicht ist,
+    /// und das entsprechende Bit im Ausgangs-Array mithilfe von BitByte aktiviert.
+    fn aktiviere_ausgangs_bit(
+        layer_output: &mut [u8],
+        node_idx: usize,
+        matches: u32,
+        threshold: u16,
+    ) {
+        if matches >= threshold as u32 {
+            let byte_pos = node_idx / 8;
+            let bit_pos = node_idx % 8;
+
+            let mut bb_layer = BitByte::new(layer_output[byte_pos]);
+            bb_layer = bb_layer.set_bit(bit_pos as u8);
+            layer_output[byte_pos] = bb_layer.value();
+        }
+    }
+
+    /// Schleust eine 16x16 Matrix (gespeichert als 32 Bytes = 256 Bits) durch alle
+    /// drei Schichten des Netzwerks und gibt das Ergebnis der Erkennung zurück.
+    pub fn forward_pass(&self, input: &[u8; 32]) -> Classification {
+        // =========================================================================
+        // SCHICHT 1: 256 Eingangs-Bits -> 64 Ausgangs-Bits (8 Bytes)
+        // =========================================================================
+        let mut layer_1_output = [0u8; 8];
+
+        for node_idx in 0..64 {
+            let knoten = &self.hidden_1[node_idx];
+            let gesamt_matches = Self::berechne_knoten_matches(input, &knoten.weights);
+
+            Self::aktiviere_ausgangs_bit(
+                &mut layer_1_output,
+                node_idx,
+                gesamt_matches,
+                knoten.threshold,
+            );
+        }
+
+        // =========================================================================
+        // SCHICHT 2: 64 Bits (8 Bytes) -> 32 Ausgangs-Bits (4 Bytes)
+        // =========================================================================
+        let mut layer_2_output = [0u8; 4];
+
+        for node_idx in 0..32 {
+            let knoten = &self.hidden_2[node_idx];
+            let gesamt_matches = Self::berechne_knoten_matches(&layer_1_output, &knoten.weights);
+
+            Self::aktiviere_ausgangs_bit(
+                &mut layer_2_output,
+                node_idx,
+                gesamt_matches,
+                knoten.threshold,
+            );
+        }
+
+        // =========================================================================
+        // SCHICHT 3: 32 Bits (4 Bytes) -> 16 Ausgangs-Bits (2 Bytes)
+        // =========================================================================
+        let mut layer_3_output = [0u8; 2];
+
+        for node_idx in 0..16 {
+            let knoten = &self.hidden_3[node_idx];
+            let gesamt_matches = Self::berechne_knoten_matches(&layer_2_output, &knoten.weights);
+
+            Self::aktiviere_ausgangs_bit(
+                &mut layer_3_output,
+                node_idx,
+                gesamt_matches,
+                knoten.threshold,
+            );
+        }
+
+        // =========================================================================
+        // AUSGABESCHICHT: Evaluierung der 3 Zustandsknoten (NULL, EINS, ANDERE)
+        // =========================================================================
+        // Wir sammeln die Trefferpunkte für jeden der 3 Ausgangsknoten
+        let mut scores = [0u32; 3];
+
+        for (score, knoten) in scores.iter_mut().zip(self.output_nodes.iter()) {
+            for (l3_byte, weight_byte) in layer_3_output.iter().zip(knoten.weights.iter()) {
+                let bb_l3 = BitByte::new(*l3_byte);
+                let bb_weight = BitByte::new(*weight_byte);
+
+                let xnor_byte = bb_l3.bitwise_xor(bb_weight).bitwise_not();
+                // Wir addieren die Hardware-Popcounts direkt auf die veränderbare Referenz (*score)
+                *score += xnor_byte.value().count_ones();
+            }
+        }
+
+        // Winner-Takes-All Auswertung (Wer hat die meisten Bit-Übereinstimmungen?)
+        let punkte_null = scores[0];
+        let punkte_eins = scores[1];
+        let punkte_andere = scores[2];
+
+        // Wenn der "ANDERE"-Knoten gewinnt oder Gleichstand herrscht, brechen wir ab
+        if punkte_andere >= punkte_null && punkte_andere >= punkte_eins {
+            return Classification::ANDERE;
+        }
+
+        // Wir fordern eine klare Konfidenz (Vorsprung von mindestens 2 Punkten),
+        // um Rauschen oder uneindeutige Zeichnungen als ANDERE abzufangen.
+        if punkte_eins > punkte_null && (punkte_eins - punkte_null) >= 2 {
+            Classification::EINS
+        } else if punkte_null > punkte_eins && (punkte_null - punkte_eins) >= 2 {
+            Classification::NULL
+        } else {
+            Classification::ANDERE // Bei zu knappen Unterschieden
+        }
+    }
 }
 
 // --- TDD Testumgebung mit Punktnotation (Vollständige Version) ---
