@@ -100,7 +100,7 @@ impl BitByte {
 //#################################################################################################
 /// Ein einzelner binärer Knoten im Netzwerk.
 /// u16 für den threshold, damit die 256 Bits der ersten Schicht sicher abbilden können.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BinaryNode<const WEIGHT_BYTES: usize> {
     /// Die gelernten Bit-Muster (Schablonen-Maske) für diesen Knoten.
     pub weights: [u8; WEIGHT_BYTES],
@@ -570,5 +570,146 @@ mod tests {
         assert!(result.check_bit(3));
         assert!(result.check_bit(4));
         assert!(!result.check_bit(0));
+    }
+
+    // =========================================================================
+    // ERWEITERTE TESTSUITE FÜR DIE NETZWERK-LOGIK (Vollständige Testabdeckung)
+    // =========================================================================
+
+    /// HILFSFUNKTION: Erstellt ein deterministisches (fest verdrahtetes) Testnetzwerk.
+    /// Da ein über `new_random` erzeugtes Netzwerk rein zufällige Gewichte hat,
+    /// lässt es sich nicht zuverlässig auf mathematische Logik prüfen.
+    /// Hier erzwingen wir kontrollierte Zustände, um den `forward_pass` exakt zu testen.
+    fn erstelle_vorhersagbares_netzwerk() -> BitNeuralNetwork {
+        // Schicht 1, 2 und 3 bekommen Schablonen aus puren Nullen und Threshold 0.
+        // Das bedeutet: Jedes Bit passt im XNOR (0^0=!1) perfekt. Die Knoten feuern IMMER.
+        let knoten_l1 = BinaryNode {
+            weights: [0x00; 32],
+            threshold: 0,
+        };
+        let knoten_l2 = BinaryNode {
+            weights: [0x00; 8],
+            threshold: 0,
+        };
+        let knoten_l3 = BinaryNode {
+            weights: [0x00; 4],
+            threshold: 0,
+        };
+
+        // Die Ausgabeschicht steuern wir jetzt präzise über die Gewichts-Masken:
+        // Da die Schicht 3 davor immer nur Einsen feuert, erzeugt das Zwischenergebnis
+        // in der Ausgabeschicht den Byte-Zustand [0xFF, 0xFF] (pures High-Signal).
+
+        // Knoten NULL (Index 0): Maske verlangt Nullen -> XNOR mit 0xFF liefert 0 Treffer.
+        let knoten_null = BinaryNode {
+            weights: [0x00, 0x00],
+            threshold: 0,
+        };
+        // Knoten EINS (Index 1): Maske verlangt Einsen -> XNOR mit 0xFF liefert 16 Treffer (Maximum).
+        let knoten_eins = BinaryNode {
+            weights: [0xFF, 0xFF],
+            threshold: 0,
+        };
+        // Knoten ANDERE (Index 2): Maske verlangt ein mittleres Rauschen.
+        let knoten_andere = BinaryNode {
+            weights: [0x55, 0xAA],
+            threshold: 0,
+        };
+
+        BitNeuralNetwork {
+            hidden_1: [knoten_l1; 64],
+            hidden_2: [knoten_l2; 32],
+            hidden_3: [knoten_l3; 16],
+            output_nodes: [knoten_null, knoten_eins, knoten_andere],
+        }
+    }
+
+    #[test]
+    fn test_netzwerk_initialisierung() {
+        // Testet, ob die Fabrik-Funktion 'new_random' fehlerfrei durchläuft
+        let netzwerk = BitNeuralNetwork::new_random();
+
+        // Überprüfung der strukturellen Integrität (Array-Längen der Schichten)
+        assert_eq!(netzwerk.hidden_1.len(), 64);
+        assert_eq!(netzwerk.hidden_2.len(), 32);
+        assert_eq!(netzwerk.hidden_3.len(), 16);
+        assert_eq!(netzwerk.output_nodes.len(), 3);
+
+        // Validierung, dass die erwürfelten Thresholds innerhalb der definierten Schranken liegen
+        assert!(netzwerk.hidden_1[0].threshold >= 100 && netzwerk.hidden_1[0].threshold <= 180);
+        assert!(netzwerk.hidden_2[0].threshold >= 25 && netzwerk.hidden_2[0].threshold <= 45);
+        assert!(netzwerk.hidden_3[0].threshold >= 12 && netzwerk.hidden_3[0].threshold <= 24);
+        assert!(
+            netzwerk.output_nodes[0].threshold >= 6 && netzwerk.output_nodes[0].threshold <= 12
+        );
+    }
+
+    #[test]
+    fn test_forward_pass_klassifizierung_eins() {
+        let netzwerk = erstelle_vorhersagbares_netzwerk();
+        let leerer_input = [0x00; 32]; // Löst die maximale Übereinstimmungskette aus
+
+        // Der Forward-Pass muss unter diesen kontrollierten Bedingungen zwingend EINS ausgeben,
+        // da der Knoten EINS 16 Treffer erzielt und die geforderte Konfidenz von >= 2 Punkten erfüllt.
+        let ergebnis = netzwerk.forward_pass(&leerer_input);
+        assert_eq!(ergebnis, Classification::EINS);
+    }
+
+    #[test]
+    fn test_forward_pass_klassifizierung_andere_bei_gleichstand() {
+        let mut netzwerk = erstelle_vorhersagbares_netzwerk();
+
+        // Wir manipulieren das Netz künstlich zu einem absoluten Gleichstand (Patt):
+        // Knoten NULL und Knoten EINS bekommen exakt dieselbe Gewichtsmaske.
+        netzwerk.output_nodes[0].weights = [0xFF, 0xFF]; // Knoten NULL fordert nun auch Max-Treffer
+
+        let leerer_input = [0x00; 32];
+        let ergebnis = netzwerk.forward_pass(&leerer_input);
+
+        // Bei einem Patt oder zu geringem Vorsprung (< 2 Punkte) greift die Konfidenz-Klaue
+        // und das System muss "ANDERE" (Unbekannt) zurückgeben.
+        assert_eq!(ergebnis, Classification::ANDERE);
+    }
+
+    #[test]
+    fn test_netzwerk_mutation() {
+        let mut netzwerk = BitNeuralNetwork::new_random();
+        let netzwerk_kopie = netzwerk.clone();
+
+        // Wir erzwingen eine radikale Mutationsrate von 100% (1.0).
+        // Jedes einzelne Gewichts-Byte im gesamten Netz MUSS sich nun verändern!
+        netzwerk.mutate(1.0);
+
+        // Überprüfung Schicht 1: Die Gewichte dürfen nach der 100%-Mutation nicht mehr identisch sein
+        assert_ne!(
+            netzwerk.hidden_1[0].weights,
+            netzwerk_kopie.hidden_1[0].weights
+        );
+        assert_ne!(
+            netzwerk.output_nodes[0].weights,
+            netzwerk_kopie.output_nodes[0].weights
+        );
+    }
+
+    #[test]
+    fn test_fitness_evaluierung() {
+        let netzwerk = erstelle_vorhersagbares_netzwerk();
+
+        // Wir bauen einen künstlichen Mini-Datensatz aus zwei Bildern
+        let datensatz = vec![
+            TrainingSample {
+                input: [0x00; 32],            // Dieses Bild wird vom Testnetz als EINS erkannt
+                target: Classification::EINS, // Korrektes Label -> Gibt 1 Punkt
+            },
+            TrainingSample {
+                input: [0x00; 32],            // Wird ebenfalls als EINS erkannt
+                target: Classification::NULL, // Falsches Label -> Gibt 0 Punkte
+            },
+        ];
+
+        // Da genau eines von zwei Bildern mathematisch korrekt vorhergesagt wird,
+        // muss die gemessene Fitness exakt 1 betragen.
+        let fitness = netzwerk.evaluate_fitness(&datensatz);
+        assert_eq!(fitness, 1);
     }
 }
