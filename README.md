@@ -1,3 +1,7 @@
+---
+## ............*in bearbeitung*..............
+---
+
 # ki-trainer-binaer
 **zum erkennen handgeschriebener zahlen soll eigenes ki modell trainiert werden auf grundlage von bitoperationen?!?**
 # Challenge: Bit-KI für Handschriften - Built from Scratch in Rust
