@@ -1,13 +1,30 @@
 use crate::BitNeuralNetwork;
+use std::fs::File;
+use std::io::{Read, Write};
 
 /// Speichert das trainierte Netzwerk als JSON-Datei auf die Festplatte
-pub fn save_champion(_network: &BitNeuralNetwork, _path: &str) -> std::io::Result<()> {
-    unimplemented!()
+pub fn save_champion(network: &BitNeuralNetwork, path: &str) -> std::io::Result<()> {
+    let json_text = serde_json::to_string_pretty(network)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+    let mut datei = File::create(path)?;
+    datei.write_all(json_text.as_bytes())?;
+
+    println!("Champion erfolgreich gespeichert!");
+    Ok(())
 }
 
 /// Lädt ein zuvor gespeichertes Netzwerk von der Festplatte
-pub fn load_champion(_path: &str) -> std::io::Result<BitNeuralNetwork> {
-    unimplemented!()
+pub fn load_champion(path: &str) -> std::io::Result<BitNeuralNetwork> {
+    let mut datei = File::open(path)?;
+    let mut json_text = String::new();
+    datei.read_to_string(&mut json_text)?;
+
+    let netzwerk: BitNeuralNetwork = serde_json::from_str(&json_text)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+    println!("Champion erfolgreich geladen!");
+    Ok(netzwerk)
 }
 
 #[cfg(test)]

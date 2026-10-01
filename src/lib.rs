@@ -1,10 +1,11 @@
 use rand::Rng;
 pub mod training;
+use serde::{Deserialize, Serialize};
 //###############################################################################################
 //##########################-----BITOPERATIONEN-----#############################################
 //###############################################################################################
 /// Ein Wrapper für u8, der komfortable Bitoperationen per Punktoperator erlaubt.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BitByte(pub u8);
 
 impl BitByte {
@@ -101,9 +102,10 @@ impl BitByte {
 //#################################################################################################
 /// Ein einzelner binärer Knoten im Netzwerk.
 /// u16 für den threshold, damit die 256 Bits der ersten Schicht sicher abbilden können.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BinaryNode<const WEIGHT_BYTES: usize> {
     /// Die gelernten Bit-Muster (Schablonen-Maske) für diesen Knoten.
+    #[serde(with = "serde_arrays")]
     pub weights: [u8; WEIGHT_BYTES],
 
     /// Der Schwellenwert: Wie viele Bits müssen mindestens übereinstimmen?
@@ -111,7 +113,7 @@ pub struct BinaryNode<const WEIGHT_BYTES: usize> {
 }
 
 /// Die drei Zustände für Ausgabeschicht.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum Classification {
     NULL,
     EINS,
@@ -119,6 +121,7 @@ pub enum Classification {
 }
 
 /// Ein einzelnes Trainingsbeispiel, das eine gezeichnete Zahl und die korrekte Antwort enthält.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrainingSample {
     /// Die 16x16 Matrix als 32 Bytes verpackt
     pub input: [u8; 32],
@@ -127,20 +130,12 @@ pub struct TrainingSample {
 }
 
 /// Das vollständige neuronale Netzwerk mit deinen 3 Hidden Layers (64 -> 32 -> 16 -> 3).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BitNeuralNetwork {
-    /// Schicht 1: 64 Knoten. Jeder Knoten verarbeitet den Input (256 Bits = 32 Bytes).
-    pub hidden_1: [BinaryNode<32>; 64],
-
-    /// Schicht 2: 32 Knoten. Jeder Knoten verarbeitet die Ausgabe aus Schicht 1 (64 Bits = 8 Bytes).
-    pub hidden_2: [BinaryNode<8>; 32],
-
-    /// Schicht 3: 16 Knoten. Jeder Knoten verarbeitet die Ausgabe aus Schicht 2 (32 Bits = 4 Bytes).
-    pub hidden_3: [BinaryNode<4>; 16],
-
-    /// Ausgabeschicht: 3 Knoten (für 0, 1 und Unbekannt).
-    /// Jeder Knoten bewertet die Ausgabe aus Schicht 3 (16 Bits = 2 Bytes).
-    pub output_nodes: [BinaryNode<2>; 3],
+    pub hidden_1: Vec<BinaryNode<32>>,
+    pub hidden_2: Vec<BinaryNode<8>>,
+    pub hidden_3: Vec<BinaryNode<4>>,
+    pub output_nodes: Vec<BinaryNode<2>>,
 }
 // =========================================================================
 // IMPLEMENTIERUNG DES NETZWERKS: INITIALISIERUNG & ZUSAMMENBAU
@@ -233,23 +228,25 @@ impl BitNeuralNetwork {
     /// Erstellt das gesamte Netzwerk durch das Aufrufen der ausgelagerten Knoten-Fabrik.
     pub fn new_random() -> Self {
         let mut rng = rand::rng();
+        //schicht eins mit 64 knoten zu je 32 byte
+        let hidden_1: Vec<BinaryNode<32>> = (0..64)
+            .map(|_| BinaryNode::new_random(&mut rng, 100, 180))
+            .collect();
 
-        // Schicht 1: 64 Knoten à 32 Bytes (256 Bits max. Übereinstimmung)
-        let hidden_1: [BinaryNode<32>; 64] =
-            core::array::from_fn(|_| BinaryNode::new_random(&mut rng, 100, 180));
+        //schicht zwei mit 32 knoten zu je 8 byte
+        let hidden_2: Vec<BinaryNode<8>> = (0..32)
+            .map(|_| BinaryNode::new_random(&mut rng, 25, 45))
+            .collect();
 
-        // Schicht 2: 32 Knoten à 8 Bytes (64 Bits max. Übereinstimmung)
-        let hidden_2: [BinaryNode<8>; 32] =
-            core::array::from_fn(|_| BinaryNode::new_random(&mut rng, 25, 45));
+        //schicht drei mit 16 knoten zu je 4 byte
+        let hidden_3: Vec<BinaryNode<4>> = (0..16)
+            .map(|_| BinaryNode::new_random(&mut rng, 12, 24))
+            .collect();
 
-        // Schicht 3: 16 Knoten à 4 Bytes (32 Bits max. Übereinstimmung)
-        let hidden_3: [BinaryNode<4>; 16] =
-            core::array::from_fn(|_| BinaryNode::new_random(&mut rng, 12, 24));
-
-        // Ausgabeschicht: 3 Knoten à 2 Bytes (16 Bits max. Übereinstimmung)
-        let output_nodes: [BinaryNode<2>; 3] =
-            core::array::from_fn(|_| BinaryNode::new_random(&mut rng, 6, 12));
-
+        //ausgabeschicht mit 3 knoten zu je 2 byte
+        let output_nodes: Vec<BinaryNode<2>> = (0..3)
+            .map(|_| BinaryNode::new_random(&mut rng, 6, 12))
+            .collect();
         // Alle sauber erzeugten Schichten zusammenfügen
         BitNeuralNetwork {
             hidden_1,
@@ -618,10 +615,10 @@ mod tests {
         };
 
         BitNeuralNetwork {
-            hidden_1: [knoten_l1; 64],
-            hidden_2: [knoten_l2; 32],
-            hidden_3: [knoten_l3; 16],
-            output_nodes: [knoten_null, knoten_eins, knoten_andere],
+            hidden_1: vec![knoten_l1; 64],
+            hidden_2: vec![knoten_l2; 32],
+            hidden_3: vec![knoten_l3; 16],
+            output_nodes: vec![knoten_null, knoten_eins, knoten_andere],
         }
     }
 
