@@ -50,6 +50,21 @@ fn main() {
         let augmented_row = dilate_zoom_outward_pure(row);
         write_row(&mut writer, &augmented_row);
         count_augmented += 1;
+        //nächte vier erweiterungen
+        //-> zahl wird jeweils ein pixel in gesetzte richtung verschoben
+        let directions = [
+            Direction::Up,
+            Direction::Down,
+            Direction::Left,
+            Direction::Right,
+        ];
+        for &dir in &directions {
+            // try_translate liefert nur dann Daten, wenn nichts abgeschnitten wird
+            if let Some(augmented_row) = try_translate(row, dir) {
+                write_row(&mut writer, &augmented_row);
+                count_augmented += 1;
+            }
+        }
     }
 
     // Speicher-Buffer physisch auf die Festplatte schreiben
@@ -281,4 +296,44 @@ fn load_csv(path: &str) -> Vec<DataRow> {
         }
     }
     dataset
+}
+
+//zur richtungsangabe im translate benutzen
+#[derive(Clone, Copy)]
+enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+//verschiebt alle pixel in gesetzte richtung wenn diese nicht am rand sind
+fn try_translate(source: &DataRow, direction: Direction) -> Option<DataRow> {
+    let mut new_grid = vec![0; TOTAL_PIXELS];
+
+    for y in 0..GRID_SIZE {
+        for x in 0..GRID_SIZE {
+            if source.grid_data[y * GRID_SIZE + x] == 1 {
+                // 1. Zielkoordinaten direkt als i32 berechnen
+                let (tx, ty) = match direction {
+                    Direction::Up => (x as i32, y as i32 - 1),
+                    Direction::Down => (x as i32, y as i32 + 1),
+                    Direction::Left => (x as i32 - 1, y as i32),
+                    Direction::Right => (x as i32 + 1, y as i32),
+                };
+
+                // 2. Randschutz: Sobald ein Pixel rausfliegt -> Sofortiger Abbruch!
+                if tx < 0 || tx >= GRID_SIZE as i32 || ty < 0 || ty >= GRID_SIZE as i32 {
+                    return None;
+                }
+
+                // 3. Wenn sicher, im neuen Grid platzieren
+                new_grid[(ty as usize) * GRID_SIZE + (tx as usize)] = 1;
+            }
+        }
+    }
+
+    Some(DataRow {
+        label: source.label,
+        grid_data: new_grid,
+    })
 }
