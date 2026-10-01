@@ -1,4 +1,5 @@
 use rand::Rng;
+pub mod training;
 //###############################################################################################
 //##########################-----BITOPERATIONEN-----#############################################
 //###############################################################################################
@@ -126,7 +127,7 @@ pub struct TrainingSample {
 }
 
 /// Das vollständige neuronale Netzwerk mit deinen 3 Hidden Layers (64 -> 32 -> 16 -> 3).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BitNeuralNetwork {
     /// Schicht 1: 64 Knoten. Jeder Knoten verarbeitet den Input (256 Bits = 32 Bytes).
     pub hidden_1: [BinaryNode<32>; 64],
