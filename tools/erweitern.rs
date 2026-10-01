@@ -34,6 +34,7 @@ fn main() {
         write_row(&mut writer, row);
         count_original += 1;
 
+        /*
         // Schritt B: Die Erweiterung (Dilatation) berechnen
         let augmented_row = dilate_left_and_up(row);
         write_row(&mut writer, &augmented_row);
@@ -50,6 +51,7 @@ fn main() {
         let augmented_row = dilate_zoom_outward_pure(row);
         write_row(&mut writer, &augmented_row);
         count_augmented += 1;
+        */
         //nächte vier erweiterungen
         //-> zahl wird jeweils ein pixel in gesetzte richtung verschoben
         let directions = [
@@ -60,7 +62,7 @@ fn main() {
         ];
         for &dir in &directions {
             // try_translate liefert nur dann Daten, wenn nichts abgeschnitten wird
-            if let Some(augmented_row) = try_translate(row, dir) {
+            if let Some(augmented_row) = try_translate(row, dir, 2) {
                 write_row(&mut writer, &augmented_row);
                 count_augmented += 1;
             }
@@ -307,7 +309,7 @@ enum Direction {
     Right,
 }
 //verschiebt alle pixel in gesetzte richtung wenn diese nicht am rand sind
-fn try_translate(source: &DataRow, direction: Direction) -> Option<DataRow> {
+fn try_translate(source: &DataRow, direction: Direction, pixel: i32) -> Option<DataRow> {
     let mut new_grid = vec![0; TOTAL_PIXELS];
 
     for y in 0..GRID_SIZE {
@@ -315,10 +317,10 @@ fn try_translate(source: &DataRow, direction: Direction) -> Option<DataRow> {
             if source.grid_data[y * GRID_SIZE + x] == 1 {
                 // 1. Zielkoordinaten direkt als i32 berechnen
                 let (tx, ty) = match direction {
-                    Direction::Up => (x as i32, y as i32 - 1),
-                    Direction::Down => (x as i32, y as i32 + 1),
-                    Direction::Left => (x as i32 - 1, y as i32),
-                    Direction::Right => (x as i32 + 1, y as i32),
+                    Direction::Up => (x as i32, y as i32 - pixel),
+                    Direction::Down => (x as i32, y as i32 + pixel),
+                    Direction::Left => (x as i32 - pixel, y as i32),
+                    Direction::Right => (x as i32 + pixel, y as i32),
                 };
 
                 // 2. Randschutz: Sobald ein Pixel rausfliegt -> Sofortiger Abbruch!
