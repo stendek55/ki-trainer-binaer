@@ -34,7 +34,6 @@ fn main() {
         write_row(&mut writer, row);
         count_original += 1;
 
-        /*
         // Schritt B: Die Erweiterung (Dilatation) berechnen
         let augmented_row = dilate_left_and_up(row);
         write_row(&mut writer, &augmented_row);
@@ -51,7 +50,6 @@ fn main() {
         let augmented_row = dilate_zoom_outward_pure(row);
         write_row(&mut writer, &augmented_row);
         count_augmented += 1;
-        */
         //nächte vier erweiterungen
         //-> zahl wird jeweils ein pixel in gesetzte richtung verschoben
         let directions = [
