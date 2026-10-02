@@ -158,6 +158,19 @@ pub fn lade_test_datensatz(index: usize) -> TrainingSample {
     for i in 0..256 {
         if bits.get(i) == Some(&1) {
             let byte_index = i / 8;
+            //###############################################################
+            //###############################################################
+            //korrigiert das vertauchte einlesen
+            //da die csv ja von links das erste zeichen liest
+            // |---> wurde das als erstes bit rechts gesetzt
+            // und wegen 2 byte breite
+            // |---> führte zum effekt eines aufgerissenen vertikalen spiegel
+            // AHAEFFEKT
+            // ||---> wenn die ki trotzdem konsequent mit diesen
+            // ||---> optisch falschen positionen trainiert würde
+            // ||---> sollte das ergebnis dennoch richtig sein
+            //###############################################################
+            //###############################################################
             let bit_position = (7 - (i % 8)) as u8;
 
             // wir holen das aktuelle BitByte, setzen das bit über deine punktnotation und schreiben es zurück
