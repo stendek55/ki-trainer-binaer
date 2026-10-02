@@ -1,4 +1,4 @@
-use crate::BitNeuralNetwork;
+use crate::{BitNeuralNetwork, TrainingSample};
 use std::fs::File;
 use std::io::{Read, Write};
 
@@ -24,6 +24,20 @@ pub fn load_champion(path: &str) -> std::io::Result<BitNeuralNetwork> {
 
     println!("Champion erfolgreich geladen!");
     Ok(netzwerk)
+}
+
+// Berechnet für jedes Netzwerk in der Population die erreichte Fitness.
+pub fn bewerte_population(
+    population: Vec<BitNeuralNetwork>,
+    dataset: &[TrainingSample],
+) -> Vec<(u32, BitNeuralNetwork)> {
+    population
+        .into_iter()
+        .map(|netz| {
+            let fitness = netz.evaluate_fitness(dataset);
+            (fitness, netz)
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -59,5 +73,33 @@ mod tests {
 
         // loesche die datei manuell damit der ordner sauber bleibt
         let _ = std::fs::remove_file(datei_pfad);
+    }
+
+    use crate::{BitNeuralNetwork, Classification, TrainingSample};
+    #[test]
+    fn test_block1_population_bewerten() {
+        // Erstelle 2 Zufalls-Netzwerke
+        let population = vec![
+            BitNeuralNetwork::new_random(),
+            BitNeuralNetwork::new_random(),
+        ];
+
+        // Erstelle einen minimalen Testdatensatz (1 Sample)
+        let dataset = vec![TrainingSample {
+            input: [0x00; 32],
+            target: Classification::ANDERE,
+        }];
+
+        // Rufe die zu testende Funktion auf
+        let bewertet = bewerte_population(population, &dataset);
+
+        // Überprüfungen:
+        assert_eq!(
+            bewertet.len(),
+            2,
+            "Die Populationsgröße darf sich nicht ändern."
+        );
+        // Jedes Element muss ein Tupel aus (u32, BitNeuralNetwork) sein
+        assert!(bewertet[0].0 <= 1, "Der maximale Score bei 1 Sample ist 1.");
     }
 }
