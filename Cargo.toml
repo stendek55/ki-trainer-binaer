@@ -23,5 +23,5 @@ name = "erweitern"
 path = "tools/erweitern.rs"
 #main
 [[bin]]
-name = "trainer"
+name = "main"
 path = "src/main.rs"

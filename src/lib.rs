@@ -124,9 +124,48 @@ pub enum Classification {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrainingSample {
     /// Die 16x16 Matrix als 32 Bytes verpackt
-    pub input: [u8; 32],
+    pub input: [BitByte; 32],
     /// Das Label, was es in Wirklichkeit ist (NULL, EINS oder ANDERE)
     pub target: Classification,
+}
+
+pub fn lade_test_datensatz(index: usize) -> TrainingSample {
+    let inhalt = include_str!("../tests/fixtures/test_daten_01.csv");
+
+    // alle zeilen trennen und die zeile am gewünschten index herausholen
+    let ds = inhalt.lines().nth(index).expect("index nicht gefunden");
+
+    // die zeile am ersten komma in den schlüssel und die restlichen bits trennen
+    let (dskey, rest_bits) = ds.split_once(',').expect("ungültiges format");
+
+    // den schlüssel bestimmen
+    let key = match dskey.trim().parse().unwrap_or(0) {
+        1 => Classification::EINS,
+        0 => Classification::NULL,
+        _ => Classification::ANDERE,
+    };
+
+    // die verbleibenden 256 bits parsen und in einen flachen vektor laden
+    let bits: Vec<u8> = rest_bits
+        .split(',')
+        .map(|s| s.trim().parse().unwrap_or(0))
+        .collect();
+
+    // das neue array für die 32 BitBytes vorbereiten
+    let mut input = [BitByte::new(0); 32];
+
+    // die 256 einzelnen bits in die 32 BitBytes komprimieren
+    for i in 0..256 {
+        if bits.get(i) == Some(&1) {
+            let byte_index = i / 8;
+            let bit_position = (7 - (i % 8)) as u8;
+
+            // wir holen das aktuelle BitByte, setzen das bit über deine punktnotation und schreiben es zurück
+            input[byte_index] = input[byte_index].set_bit(bit_position);
+        }
+    }
+
+    TrainingSample { input, target: key }
 }
 
 /// Das vollständige neuronale Netzwerk mit deinen 3 Hidden Layers (64 -> 32 -> 16 -> 3).
@@ -291,7 +330,7 @@ impl BitNeuralNetwork {
 
     /// Schleust eine 16x16 Matrix (gespeichert als 32 Bytes = 256 Bits) durch alle
     /// drei Schichten des Netzwerks und gibt das Ergebnis der Erkennung zurück.
-    pub fn forward_pass(&self, input: &[u8; 32]) -> Classification {
+    pub fn forward_pass(&self, input: &[BitByte; 32]) -> Classification {
         // =========================================================================
         // SCHICHT 1: 256 Eingangs-Bits -> 64 Ausgangs-Bits (8 Bytes)
         // =========================================================================
@@ -299,8 +338,15 @@ impl BitNeuralNetwork {
 
         for node_idx in 0..64 {
             let knoten = &self.hidden_1[node_idx];
-            let gesamt_matches = Self::berechne_knoten_matches(input, &knoten.weights);
 
+            // anpassung hier: wir berechnen die matches direkt, indem wir die inneren u8-werte übergeben
+            let mut gesamt_matches = 0u32;
+            for (bb_layer, weight_byte) in input.iter().zip(knoten.weights.iter()) {
+                let bb_weight = BitByte::new(*weight_byte);
+                // bb_layer ist bereits ein BitByte, wir rufen direkt deine operationen auf
+                let xnor_byte = bb_layer.bitwise_xor(bb_weight).bitwise_not();
+                gesamt_matches += xnor_byte.value().count_ones();
+            }
             Self::aktiviere_ausgangs_bit(
                 &mut layer_1_output,
                 node_idx,
@@ -645,7 +691,7 @@ mod tests {
     #[test]
     fn test_forward_pass_klassifizierung_eins() {
         let netzwerk = erstelle_vorhersagbares_netzwerk();
-        let leerer_input = [0x00; 32]; // Löst die maximale Übereinstimmungskette aus
+        let leerer_input = [BitByte::new(0x00); 32]; // Löst die maximale Übereinstimmungskette aus
 
         // Der Forward-Pass muss unter diesen kontrollierten Bedingungen zwingend EINS ausgeben,
         // da der Knoten EINS 16 Treffer erzielt und die geforderte Konfidenz von >= 2 Punkten erfüllt.
@@ -661,7 +707,7 @@ mod tests {
         // Knoten NULL und Knoten EINS bekommen exakt dieselbe Gewichtsmaske.
         netzwerk.output_nodes[0].weights = [0xFF, 0xFF]; // Knoten NULL fordert nun auch Max-Treffer
 
-        let leerer_input = [0x00; 32];
+        let leerer_input = [BitByte::new(0x00); 32];
         let ergebnis = netzwerk.forward_pass(&leerer_input);
 
         // Bei einem Patt oder zu geringem Vorsprung (< 2 Punkte) greift die Konfidenz-Klaue
@@ -696,12 +742,12 @@ mod tests {
         // Wir bauen einen künstlichen Mini-Datensatz aus zwei Bildern
         let datensatz = vec![
             TrainingSample {
-                input: [0x00; 32],            // Dieses Bild wird vom Testnetz als EINS erkannt
-                target: Classification::EINS, // Korrektes Label -> Gibt 1 Punkt
+                input: [BitByte::new(0x00); 32], // Dieses Bild wird vom Testnetz als EINS erkannt
+                target: Classification::EINS,    // Korrektes Label -> Gibt 1 Punkt
             },
             TrainingSample {
-                input: [0x00; 32],            // Wird ebenfalls als EINS erkannt
-                target: Classification::NULL, // Falsches Label -> Gibt 0 Punkte
+                input: [BitByte::new(0x00); 32], // Wird ebenfalls als EINS erkannt
+                target: Classification::NULL,    // Falsches Label -> Gibt 0 Punkte
             },
         ];
 
