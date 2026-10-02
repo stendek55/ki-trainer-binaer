@@ -49,6 +49,11 @@ pub fn sortiere_nach_fitness(bewertete_population: &mut [(u32, BitNeuralNetwork)
 mod tests {
     use super::*;
     #[test]
+    // dieser test provoziert cargo watch ständig zu laufen/starten -> nervöse ruckeln -> nervt
+    // deswegen...
+    #[ignore] // Dieser Test wird übersprungen, wenn cargo test
+    //Nur die ignorierten Tests laufen lassen -> cargo test -- --ignored
+    //Alle Tests laufen lassen (inklusive der ignorierten) -> cargo test -- --include-ignored
     fn test_speichern_und_laden_des_champions_erfolgreich() {
         // erstelle ein echtes test netzwerk aus deiner library
         let original_netzwerk = BitNeuralNetwork::new_random();
