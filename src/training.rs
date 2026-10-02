@@ -40,6 +40,11 @@ pub fn bewerte_population(
         .collect()
 }
 
+// Sortiert die bewertete Population absteigend nach ihrer Fitness score.
+pub fn sortiere_nach_fitness(bewertete_population: &mut [(u32, BitNeuralNetwork)]) {
+    bewertete_population.sort_by_key(|eintrag| std::cmp::Reverse(eintrag.0));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -101,5 +106,30 @@ mod tests {
         );
         // Jedes Element muss ein Tupel aus (u32, BitNeuralNetwork) sein
         assert!(bewertet[0].0 <= 1, "Der maximale Score bei 1 Sample ist 1.");
+    }
+
+    #[test]
+    fn test_block2_population_sortieren() {
+        let netz_schlecht = BitNeuralNetwork::new_random();
+        let netz_gut = BitNeuralNetwork::new_random();
+
+        // Wir simulieren eine bereits bewertete Population im Chaos-Zustand
+        let unsortiert = vec![
+            (5, netz_schlecht.clone()), // Schlechtes Netz hat 5 Punkte
+            (10, netz_gut.clone()),     // Gutes Netz hat 10 Punkte
+        ];
+
+        let mut sortiert = unsortiert;
+        sortiere_nach_fitness(&mut sortiert);
+
+        // Das Netz mit 10 Punkten MUSS jetzt an Index 0 stehen
+        assert_eq!(
+            sortiert[0].0, 10,
+            "Das beste Netzwerk muss auf Platz 1 stehen."
+        );
+        assert_eq!(
+            sortiert[1].0, 5,
+            "Das schlechteste Netzwerk muss nach hinten."
+        );
     }
 }
