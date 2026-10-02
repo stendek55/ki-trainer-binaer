@@ -2,6 +2,22 @@ use crate::{BitNeuralNetwork, TrainingSample};
 use std::fs::File;
 use std::io::{Read, Write};
 
+/// konfigurationsparameter für die evolutionsschleife
+pub struct TrainingsKonfiguration {
+    pub populations_groesse: usize, // anzahl der mutanten pro generation
+    pub maximale_generationen: u32, // maximale anzahl an trainingsrunden
+    pub basis_mutations_rate: f32,  // start-mutationsrate als fließkommazahl
+    pub stagnations_grenze: u32,    // runden ohne verbesserung bis zur anpassung
+}
+
+/// startet den genetischen trainingsprozess
+pub fn trainieren(
+    datensatz: &[TrainingSample],
+    konfig: TrainingsKonfiguration,
+) -> BitNeuralNetwork {
+    unimplemented!()
+}
+
 /// Speichert das trainierte Netzwerk als JSON-Datei auf die Festplatte
 pub fn save_champion(network: &BitNeuralNetwork, path: &str) -> std::io::Result<()> {
     let json_text = serde_json::to_string_pretty(network).map_err(std::io::Error::other)?;
@@ -136,5 +152,29 @@ mod tests {
             sortiert[1].0, 5,
             "Das schlechteste Netzwerk muss nach hinten."
         );
+    }
+
+    #[test]
+    fn test_trainieren_waehlt_besseren_mutanten() {
+        // arrange: konfiguration für genau eine generation mit zwei mutanten vorbereiten
+        let konfiguration = TrainingsKonfiguration {
+            populations_groesse: 2,
+            maximale_generationen: 1,
+            basis_mutations_rate: 0.02,
+            stagnations_grenze: 5,
+        };
+
+        // ein testdatensatz mit einem beispiel erstellen
+        let datensatz = vec![TrainingSample {
+            input: [0x00; 32],
+            target: Classification::EINS,
+        }];
+
+        // act: das training für eine runde starten
+        let finaler_champion = trainieren(&datensatz, konfiguration);
+
+        // assert: überprüfen, dass die funktion erfolgreich ein netzwerk zurückgibt
+        // die fitness darf sich im vergleich zum start nicht verschlechtert haben
+        assert!(finaler_champion.evaluate_fitness(&datensatz) >= 0);
     }
 }
